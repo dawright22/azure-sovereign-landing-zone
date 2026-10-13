@@ -1,0 +1,28 @@
+{
+  "name": "azure-sovereign-landing-zone",
+  "owner": {
+    "name": "dawright22",
+    "url": "https://github.com/dawright22"
+  },
+  "metadata": {
+    "description": "SLZ Sovereignty Baseline (SO-1 to SO-5) alignment assessment for Git-Ape deployments.",
+    "version": "1.0.0",
+    "category": "compliance",
+    "tags": ["azure", "sovereign-landing-zone", "slz", "data-residency", "git-ape"]
+  },
+  "plugins": [
+    {
+      "name": "azure-sovereign-landing-zone",
+      "description": "SLZ alignment assessment and gate for Git-Ape deployments.",
+      "version": "1.0.0",
+      "source": "."
+    }
+  ],
+  "skills": [
+    {
+      "name": "azure-sovereign-landing-zone",
+      "description": "Evidence-based assessment against SLZ Sovereignty Baseline controls SO-1 to SO-5",
+      "category": "compliance"
+    }
+  ]
+}
