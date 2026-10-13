@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "SLZ Sovereignty Baseline (SO-1 to SO-5) alignment assessment for Git-Ape deployments.",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "category": "compliance",
     "tags": ["azure", "sovereign-landing-zone", "slz", "data-residency", "git-ape"]
   },
@@ -14,7 +14,7 @@
     {
       "name": "azure-sovereign-landing-zone",
       "description": "SLZ alignment assessment and gate for Git-Ape deployments.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "source": "."
     }
   ],

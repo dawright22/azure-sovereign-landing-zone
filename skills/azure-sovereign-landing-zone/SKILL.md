@@ -1,12 +1,12 @@
 ---
 name: azure-sovereign-landing-zone
-description: "Assess Git-Ape deployments against the Microsoft Sovereign Landing Zone (SLZ) Sovereignty Baseline control objectives SO-1 to SO-5 (data residency, operator access, customer-managed keys, confidential computing, Trusted Launch) and produce an evidence-based, scope-bound SLZ alignment report and gate result. USE FOR: sovereign, SLZ, data residency, confidential computing, CMK alignment checks after template generation. DO NOT USE FOR: legal or regulatory certification, generic security review (use azure-security-analyzer), or applying management-group policy."
+description: "Assess Git-Ape deployments against the Microsoft Sovereign Landing Zone (SLZ) Sovereignty Baseline control objectives SO-1 to SO-5 (data residency, operator access, customer-managed keys, confidential computing, Trusted Launch) and produce an evidence-based, scope-bound SLZ alignment report and gate result. Also builds the SLZ platform baseline (management group hierarchy plus Sovereignty Baseline policy assignments) from a request such as 'build me a sovereign cloud in <region>', behind a separate blast-radius and confirmation gate. USE FOR: sovereign, SLZ, data residency, confidential computing, CMK alignment checks after template generation; build a sovereign cloud or landing zone in a region. DO NOT USE FOR: legal or regulatory certification, or generic security review (use azure-security-analyzer)."
 license: MIT
 metadata:
   author: dawright22
   source: https://github.com/dawright22/azure-sovereign-landing-zone
   maturity: experimental
-  version: "1.0.0"
+  version: "1.1.0"
   argument-hint: "Deployment ID or template path, plus sovereignty profile (archetype, allowed locations, classification)"
   user-invocable: true
 ---
@@ -27,7 +27,17 @@ metadata:
 * "Does this template meet our data residency requirements?"
 * "Are we using customer-managed keys and confidential computing for the confidential landing zone?"
 * A requirements file or `.azure/sovereignty.json` declares a sovereignty profile
+* "Build me a sovereign cloud in Australia East" (Build mode)
 * Never run silently: if no profile exists, ask for one (interactive) or report `Unknown` (headless)
+
+## Modes
+
+| Mode | Trigger | Scope | What it does |
+|------|---------|-------|--------------|
+| Assess | A workload template exists | Resource group / subscription | Procedure below |
+| Build | "build me a sovereign cloud in {region}" | Tenant / management group | [Build Procedure](#build-procedure) |
+
+Build mode creates platform resources, so it is always a separate, explicitly confirmed flow. After Build, workloads deploy through the normal Git-Ape flow and are checked in Assess mode.
 
 ## Procedure
 
@@ -92,6 +102,46 @@ SO-2 (Customer Lockbox) is a tenant and operational prerequisite and is never in
 
 Consume `/azure-security-analyzer` and `/azure-policy-advisor` output instead of re-deriving it. Write `slz-assessment.md`, `slz-assessment.json` and `sovereignty-gate.json` to `.azure/deployments/$DEPLOYMENT_ID/`. `BLOCKED` if any applicable mandatory control is `Failed` or `Unknown`.
 
+## Build Procedure
+
+Request form: `build me a sovereign cloud in {region}`. Region is the only required input; everything else defaults as below and is shown for confirmation. Details in [references/slz-platform-build.md](references/slz-platform-build.md).
+
+### B1. Resolve defaults and preflight
+
+* Normalize the region and set `allowedLocations = [region]`. Set `confidentialAllowedLocations = [region]` only after verifying confidential computing availability in that region with `/azure-resource-availability`. If unavailable, ask the user for an alternative confidential region or to omit the Confidential archetypes. Never assume.
+* Defaults to confirm: management group prefix, networking topology (hub-spoke default, Virtual WAN optional), `parPolicyEffect = Audit` for the first rollout with an explicit later promotion to `Deny`.
+* Default parent is a new **pilot** management group, never the tenant root. Tenant root requires the user to type the tenant ID.
+* Preflight: `az login` context, tenant, existing management group hierarchy, required roles (Management Group Contributor and Resource Policy Contributor, or Owner at the parent). Report missing permissions as blockers.
+
+### B2. Generate platform artifacts
+
+Write to `.azure/platform/$PLATFORM_ID/` (separate from workload `.azure/deployments/`):
+
+* `mg-hierarchy.json`: tenant-scope ARM template for the SLZ hierarchy: SLZ root; Platform (Identity, Connectivity, Management); Landing Zones (Corp, Online, Confidential Corp, Confidential Online); Sandbox; Decommissioned.
+* `policy-assignments.json`: Sovereignty Baseline Global initiative at the SLZ root and Confidential initiative at the two confidential management groups, with the parameters from step B1. Look the initiative IDs up at run time, never hard-code them:
+
+  ```bash
+  az policy set-definition list --query "[?contains(displayName,'Sovereignty Baseline')].{name:name,displayName:displayName,id:id}" -o json
+  ```
+
+* `platform-profile.json`, `blast-radius.md` and `slz-assessment.json` (platform and operational sections only).
+
+Hub networking, logging and identity resources are workloads in the Platform subscriptions. Generate them through the normal Git-Ape template flow, not inside the tenant-scope template. Do not copy content from the archived `Azure/sovereign-landing-zone` repository.
+
+### B3. Blast-radius preview and gates
+
+* Run what-if at the parent scope. List every existing subscription and management group under the target parent, and every existing policy assignment that the new assignments would join.
+* Run `/azure-security-analyzer` and `/azure-policy-advisor` on the artifacts.
+* Show the preview. Deployment needs the user to type the exact phrase `build sovereign cloud in {region} under {parent management group ID} in tenant {tenant ID}`. No other wording counts as confirmation.
+
+### B4. Deploy
+
+Delegate to `azure-resource-deployer`; never deploy from this skill. Use a management-group or tenant-scope deployment with a **separate identity and GitHub environment** from workload deployments. Headless mode requires PR approval on the platform artifacts and never runs from a workload PR. Do not place the hierarchy or policy assignments in a workload Deployment Stack.
+
+### B5. Verify and hand over
+
+Run Assess steps 4 and 5 against the new hierarchy (assigned, enforced, evaluated, compliant) and record the Customer Lockbox attestation request for the tenant owner. Give the user: the hierarchy, where to place subscriptions (each archetype's management group), the planned `Audit` to `Deny` promotion, and the exact destroy path. Policy compliance may take time to evaluate, so report `Unknown` rather than `Passed` until it does.
+
 ## Outputs
 
 | File | Content |
@@ -133,7 +183,9 @@ Consume `/azure-security-analyzer` and `/azure-policy-advisor` output instead of
 **Never:**
 
 * Claim a deployment is "sovereign" or "compliant" overall.
-* Emit or apply management group policy assignments from a workload deployment. Baseline policy, exemptions and Lockbox are a separate platform workflow with its own identity and approval, outside workload Deployment Stacks.
+* Emit or apply management group policy assignments from a workload deployment or in Assess mode. Platform changes happen only through Build mode, with its own identity, blast-radius preview and typed confirmation, outside workload Deployment Stacks.
+* Build at the tenant root group, or deploy platform artifacts, without the typed confirmation phrase.
+* Assume confidential computing exists in the requested region, or set the policy effect to `Deny` on the first rollout.
 * Treat `securityType = ConfidentialVM`, secure boot or vTPM alone as proof of customer-exclusive key control (SO-4).
 * Infer SO-2 or any platform control from the template.
 * Accept free-text overrides.

@@ -1,7 +1,7 @@
 {
   "name": "azure-sovereign-landing-zone",
   "description": "Assess Git-Ape deployments against the Microsoft Sovereign Landing Zone (SLZ) Sovereignty Baseline control objectives SO-1 to SO-5, producing an evidence-based, scope-bound alignment report and gate result. Not a legal or regulatory certification.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "dawright22",
     "url": "https://github.com/dawright22"
